@@ -5,18 +5,14 @@ const RUNTIME_IS_LOCAL =
   typeof window !== 'undefined' &&
   ['127.0.0.1', 'localhost'].includes(window.location.hostname)
 
-const API_BASE = (import.meta.env.VITE_TOOL_API_BASE || (RUNTIME_IS_LOCAL ? 'http://127.0.0.1:8787' : '')).replace(/\/+$/, '')
+const API_BASE = (
+  import.meta.env.VITE_TOOL_API_BASE || (RUNTIME_IS_LOCAL ? 'http://127.0.0.1:8787' : '')
+).replace(/\/+$/, '')
 
-const imageModels = [
-  { id: 'gpt-image-1', label: 'GPT Image 1' },
-  { id: 'gpt-image-1-mini', label: 'GPT Image 1 Mini' },
-  { id: 'gpt-image-1.5', label: 'GPT Image 1.5' },
-]
-
-const videoModels = [
-  { id: 'doubao-seedance-2.0', label: 'Seedance 2.0', resolutions: ['480p', '720p', '1080p'] },
-  { id: 'doubao-seedance-2.0-fast', label: 'Seedance 2.0 Fast', resolutions: ['480p', '720p'] },
-]
+const IMAGE_MODEL = {
+  id: 'gpt-image-2',
+  label: 'GPT Image 2',
+}
 
 const imageModes = [
   { id: 'text', label: '文生图' },
@@ -25,9 +21,13 @@ const imageModes = [
 
 const videoModes = [
   { id: 'text', label: '文生视频' },
-  { id: 'first', label: '首帧生视频' },
-  { id: 'first-last', label: '首尾帧生视频' },
+  { id: 'image', label: '首帧 / 首尾帧生视频' },
   { id: 'multi', label: '多参考生视频' },
+]
+
+const videoModels = [
+  { id: 'doubao-seedance-2.0', label: 'Seedance 2.0', resolutions: ['480p', '720p', '1080p'] },
+  { id: 'doubao-seedance-2.0-fast', label: 'Seedance 2.0 Fast', resolutions: ['480p', '720p'] },
 ]
 
 const imageSizeOptions = ['1024x1024', '1024x1536', '1536x1024']
@@ -84,7 +84,6 @@ function App() {
   const [imageState, setImageState] = useState({
     baseUrl: 'https://api.openai.com',
     apiKey: '',
-    model: imageModels[0].id,
     mode: imageModes[0].id,
     prompt: '',
     size: imageSizeOptions[0],
@@ -148,6 +147,10 @@ function App() {
   )
 
   useEffect(() => {
+    if (!API_BASE) {
+      return
+    }
+
     let active = true
 
     async function loadContent() {
@@ -171,7 +174,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!videoState.polling || !videoState.taskId) {
+    if (!videoState.polling || !videoState.taskId || !API_BASE) {
       return undefined
     }
 
@@ -229,15 +232,15 @@ function App() {
           throw new Error('请先上传参考图或填写图片 URL')
         }
 
-        formData.append('model', imageState.model)
+        formData.append('model', IMAGE_MODEL.id)
         formData.append('prompt', imageState.prompt)
         formData.append('size', imageState.size)
         formData.append('quality', imageState.quality)
         formData.append('output_format', imageState.format)
-        formData.append('image', sourceFile)
+        formData.append('image[]', sourceFile)
 
         requestPreview = {
-          model: imageState.model,
+          model: IMAGE_MODEL.id,
           prompt: imageState.prompt,
           size: imageState.size,
           quality: imageState.quality,
@@ -254,7 +257,7 @@ function App() {
         })
       } else {
         requestPreview = {
-          model: imageState.model,
+          model: IMAGE_MODEL.id,
           prompt: imageState.prompt,
           size: imageState.size,
           quality: imageState.quality,
@@ -301,6 +304,12 @@ function App() {
 
   async function submitVideo(event) {
     event.preventDefault()
+
+    if (!API_BASE) {
+      setVideoPatch({ error: '当前页面未配置工具 API 地址，视频功能暂不可用。' })
+      return
+    }
+
     setVideoPatch({
       submitting: true,
       error: '',
@@ -324,13 +333,19 @@ function App() {
         payload.extra_body = { real_person_mode: true }
       }
 
-      if (videoState.mode === 'first') {
-        payload.image = await resolveSeedanceInput(videoState.frameFile, videoState.frameUrl)
-      }
+      if (videoState.mode === 'image') {
+        const frameValue = await resolveSeedanceInput(videoState.frameFile, videoState.frameUrl)
 
-      if (videoState.mode === 'first-last') {
-        payload.image = await resolveSeedanceInput(videoState.frameFile, videoState.frameUrl)
-        payload.image_tail = await resolveSeedanceInput(videoState.tailFile, videoState.tailUrl)
+        if (!frameValue) {
+          throw new Error('首帧是必填项；如果只想用首帧，就不要填写尾帧。')
+        }
+
+        payload.image = frameValue
+
+        const tailValue = await resolveSeedanceInput(videoState.tailFile, videoState.tailUrl)
+        if (tailValue) {
+          payload.image_tail = tailValue
+        }
       }
 
       if (videoState.mode === 'multi') {
@@ -486,22 +501,22 @@ function App() {
           <h1>{content?.site.title || 'AI 媒体工具工作台'}</h1>
           <p>
             {content?.site.subtitle ||
-              '一个给普通用户直接使用的网页工具。输入 API Base URL 和 Key，即可完成图片生成、图生图、文生视频和图生视频。'}
+              '一个给普通用户直接使用的网页工具。支持 GPT Image 2 图片生成，以及 Seedance 视频生成与参考素材工作流。'}
           </p>
           <div className="hero-points">
-            <span>更少配置</span>
-            <span>更直接结果</span>
+            <span>GPT Image 2</span>
+            <span>Seedance 2.0</span>
             <span>刷新即清空 Key</span>
           </div>
         </div>
 
         <div className="hero-guide">
           <div className="guide-card">
-            <strong>使用很简单</strong>
+            <strong>使用步骤</strong>
             <ol>
               <li>选择图片生成或视频生成</li>
-              <li>填入 API 地址和 Key</li>
-              <li>输入 Prompt 或上传素材</li>
+              <li>填写 API Base URL 和 Key</li>
+              <li>输入 Prompt，按需上传参考素材</li>
               <li>点击生成，直接查看结果</li>
             </ol>
           </div>
@@ -524,9 +539,15 @@ function App() {
               <div className="tool-head">
                 <div>
                   <h2>图片生成</h2>
-                  <p>支持文生图和图生图，常用参数已经帮你收好。</p>
+                  <p>当前只保留 `GPT Image 2`。文生图走 `/v1/images/generations`，图生图走 `/v1/images/edits`。</p>
                 </div>
-                <span className="badge">OpenAI</span>
+                <span className="badge">GPT Image 2</span>
+              </div>
+
+              <div className="info-list">
+                <div>文生图参数：`model`、`prompt`、`size`、`quality`、`output_format`</div>
+                <div>图生图上传参数：`image[]`，不是自定义字段名</div>
+                <div>图生图接口路径：`/v1/images/edits`</div>
               </div>
 
               <div className="input-grid">
@@ -540,13 +561,7 @@ function App() {
                 </label>
                 <label>
                   模型
-                  <select value={imageState.model} onChange={(event) => setImagePatch({ model: event.target.value })}>
-                    {imageModels.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
+                  <input value={IMAGE_MODEL.label} disabled />
                 </label>
                 <label>
                   模式
@@ -597,6 +612,9 @@ function App() {
               {imageState.mode === 'edit' && (
                 <div className="support-box">
                   <h3>参考图片</h3>
+                  <div className="support-copy">
+                    上传本地文件时，前端会按 `image[]` 提交；填写 URL 时，会先读取远程图片再按相同参数上传。
+                  </div>
                   <div className="input-grid">
                     <label>
                       上传图片
@@ -636,7 +654,7 @@ function App() {
               <div className="tool-head">
                 <div>
                   <h2>生成结果</h2>
-                  <p>成功后这里会优先展示最终图片，技术信息默认折叠。</p>
+                  <p>成功后优先显示最终图片，技术细节收在开发者信息里。</p>
                 </div>
               </div>
 
@@ -648,7 +666,7 @@ function App() {
                   </a>
                 </div>
               ) : (
-                <div className="empty-box">生成成功后，这里会展示你的图片结果。</div>
+                <div className="empty-box">生成成功后，这里会展示图片结果。</div>
               )}
 
               {(imageState.result || imageState.requestPreview || imageState.curlCommand) && (
@@ -681,9 +699,17 @@ function App() {
               <div className="tool-head">
                 <div>
                   <h2>视频生成</h2>
-                  <p>默认保留最常用的四种方式，真人模式和素材能力也已经接好。</p>
+                  <p>首帧和尾帧不是冲突项。`image` 是首帧，`image_tail` 是尾帧；只填首帧就是首帧模式，首尾都填就是首尾帧模式。</p>
                 </div>
                 <span className="badge blue">Seedance</span>
+              </div>
+
+              <div className="info-list">
+                <div>文生视频：只传 `model`、`prompt`、`duration`、`resolution`、`aspect_ratio`</div>
+                <div>首帧模式：增加 `image`</div>
+                <div>首尾帧模式：同时传 `image` + `image_tail`</div>
+                <div>多参考模式：使用 `images`，可再叠加 `video`、`audio`</div>
+                <div>真人模式：增加 `extra_body.real_person_mode = true`</div>
               </div>
 
               <div className="input-grid">
@@ -760,9 +786,14 @@ function App() {
                 </label>
               </div>
 
-              {(videoState.mode === 'first' || videoState.mode === 'first-last') && (
+              {videoState.mode === 'image' && (
                 <div className="support-box">
-                  <h3>参考图片</h3>
+                  <h3>首帧 / 尾帧</h3>
+                  <div className="support-copy">
+                    首帧是必填。尾帧是可选项，不是互斥项：
+                    不填尾帧 = 首帧生视频；
+                    填了尾帧 = 首尾帧生视频。
+                  </div>
                   <div className="input-grid">
                     <label>
                       首帧上传
@@ -782,28 +813,24 @@ function App() {
                       首帧 URL 或 asset://
                       <input value={videoState.frameUrl} placeholder="https://example.com/frame.png 或 asset://..." onChange={(event) => setVideoPatch({ frameUrl: event.target.value })} />
                     </label>
-                    {videoState.mode === 'first-last' && (
-                      <>
-                        <label>
-                          尾帧上传
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(event) => {
-                              const file = event.target.files?.[0] ?? null
-                              setVideoPatch({
-                                tailFile: file,
-                                tailPreviewUrl: file ? URL.createObjectURL(file) : '',
-                              })
-                            }}
-                          />
-                        </label>
-                        <label>
-                          尾帧 URL 或 asset://
-                          <input value={videoState.tailUrl} placeholder="https://example.com/tail.png 或 asset://..." onChange={(event) => setVideoPatch({ tailUrl: event.target.value })} />
-                        </label>
-                      </>
-                    )}
+                    <label>
+                      尾帧上传
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null
+                          setVideoPatch({
+                            tailFile: file,
+                            tailPreviewUrl: file ? URL.createObjectURL(file) : '',
+                          })
+                        }}
+                      />
+                    </label>
+                    <label>
+                      尾帧 URL 或 asset://
+                      <input value={videoState.tailUrl} placeholder="https://example.com/tail.png 或 asset://..." onChange={(event) => setVideoPatch({ tailUrl: event.target.value })} />
+                    </label>
                   </div>
 
                   {(videoState.framePreviewUrl || videoState.tailPreviewUrl) && (
@@ -818,6 +845,9 @@ function App() {
               {videoState.mode === 'multi' && (
                 <div className="support-box">
                   <h3>多参考输入</h3>
+                  <div className="support-copy">
+                    `images` 用于参考图列表；`video` 和 `audio` 是可选增强项。不能只传音频不传图片或视频。
+                  </div>
                   <div className="input-grid">
                     <label className="span-2">
                       参考图 URL / asset:// 列表
@@ -860,6 +890,9 @@ function App() {
 
               <details className="support-box compact">
                 <summary>高级素材模式</summary>
+                <div className="support-copy">
+                  如果参考图里有人脸，建议先走素材工作流。素材创建接口的关键参数是 `url`，创建成功后再把返回的 `asset://...` 回填到 `image`、`image_tail` 或 `images`。
+                </div>
                 <div className="input-grid spaced">
                   <label>
                     素材组名称
@@ -949,7 +982,7 @@ function App() {
                   </a>
                 </div>
               ) : (
-                <div className="empty-box">提交视频任务后，这里会显示你的生成结果。</div>
+                <div className="empty-box">提交视频任务后，这里会显示生成结果。</div>
               )}
 
               {(videoState.result || videoState.requestPreview || videoState.curlCommand || videoState.assetStatus) && (

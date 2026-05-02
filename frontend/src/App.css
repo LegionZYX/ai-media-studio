@@ -110,6 +110,25 @@
   line-height: 1.9;
 }
 
+.info-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.info-list div,
+.support-copy {
+  color: #aab5c7;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.info-list div {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .main-wrap {
   padding-bottom: 56px;
 }
@@ -223,6 +242,10 @@
 .support-box h3 {
   margin: 0 0 16px;
   font-size: 1rem;
+}
+
+.support-copy {
+  margin-bottom: 16px;
 }
 
 .support-box.compact summary,
