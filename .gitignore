@@ -1,0 +1,27 @@
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+.tmp_*
+.env
+.env.local
+.env.*.local
+
+# Local docs and private source material
+*.pdf
+*.docx
+downloads/
+_extracted/
+pricing_compare_export/
+docs/
+site/
+
+# Keep app folders only
+!.github/
+!frontend/
+!admin/
+!api/
+!CONTENT_GUIDE.md
+!start-local.ps1
