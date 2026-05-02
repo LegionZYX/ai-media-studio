@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
-const API_BASE = (import.meta.env.VITE_TOOL_API_BASE || 'http://127.0.0.1:8787').replace(/\/+$/, '')
+const RUNTIME_IS_LOCAL =
+  typeof window !== 'undefined' &&
+  ['127.0.0.1', 'localhost'].includes(window.location.hostname)
+
+const API_BASE = (import.meta.env.VITE_TOOL_API_BASE || (RUNTIME_IS_LOCAL ? 'http://127.0.0.1:8787' : '')).replace(/\/+$/, '')
 
 const imageModels = [
   { id: 'gpt-image-1', label: 'GPT Image 1' },
