@@ -110,6 +110,17 @@
   line-height: 1.9;
 }
 
+.guide-card code,
+.note-box code,
+.support-box code,
+.tool-head code,
+.step-list code {
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
 .info-list {
   display: grid;
   gap: 10px;
@@ -127,6 +138,37 @@
   padding: 10px 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
+}
+
+.note-box {
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  border: 1px solid rgba(80, 184, 255, 0.18);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(16, 32, 59, 0.9), rgba(11, 17, 26, 0.92));
+}
+
+.note-box strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.98rem;
+}
+
+.hint-list,
+.step-list {
+  margin: 0;
+  color: #b9c6d8;
+  line-height: 1.8;
+}
+
+.hint-list {
+  padding-left: 18px;
+}
+
+.step-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .main-wrap {
@@ -246,6 +288,36 @@
 
 .support-copy {
   margin-bottom: 16px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-grid div {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.stat-grid strong,
+.stat-grid span {
+  display: block;
+}
+
+.stat-grid strong {
+  margin-bottom: 4px;
+  font-size: 1.35rem;
+  color: #f7fbff;
+}
+
+.stat-grid span {
+  color: #aab5c7;
+  font-size: 0.82rem;
 }
 
 .support-box.compact summary,
@@ -424,6 +496,7 @@
   }
 
   .input-grid,
+  .stat-grid,
   .dual-preview,
   .gallery-preview {
     grid-template-columns: 1fr;

@@ -253,3 +253,66 @@ test('GET /api/tools/seedance/assets/:taskId proxies asset status', async () => 
   assert.equal(response.body.state, 'succeed')
   assert.equal(response.body.assetUrl, 'https://cdn.example.com/asset.png')
 })
+
+test('POST /api/tools/seedance/assets/upload uploads a local file and returns asset ref', async () => {
+  const calls = []
+
+  const app = createApp({
+    sleepImpl: async () => {},
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init })
+
+      if (url.endsWith('/api/v1/assets/group')) {
+        return new Response(JSON.stringify({ id: 'group-2' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      if (url.endsWith('/api/v1/assets/create')) {
+        return new Response(JSON.stringify({ id: 'asset-task-2' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      if (url.endsWith('/api/v1/assets/asset-task-2')) {
+        return new Response(
+          JSON.stringify({
+            id: 'asset-2',
+            status: 'succeed',
+            url: 'https://cdn.example.com/uploaded.png',
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        )
+      }
+
+      throw new Error(`unexpected url: ${url}`)
+    },
+  })
+
+  const response = await request(app)
+    .post('/api/tools/seedance/assets/upload')
+    .field('baseUrl', 'https://aiai.ac')
+    .field('apiKey', 'test-key')
+    .field('group_name', '自动素材组')
+    .field('name', '首帧上传')
+    .field('asset_type', 'Image')
+    .field('platform', 'bytedance')
+    .attach('file', Buffer.from('fake-image'), 'frame.png')
+
+  assert.equal(response.status, 200)
+  assert.equal(response.body.groupId, 'group-2')
+  assert.equal(response.body.taskId, 'asset-task-2')
+  assert.equal(response.body.assetId, 'asset-2')
+  assert.equal(response.body.assetRef, 'asset://asset-2')
+  assert.equal(calls[0].url, 'https://aiai.ac/api/v1/assets/group')
+  assert.equal(calls[1].url, 'https://aiai.ac/api/v1/assets/create')
+
+  const createBody = JSON.parse(calls[1].init.body)
+  assert.equal(createBody.group_id, 'group-2')
+  assert.match(createBody.url, /^data:image\/png;base64,/)
+})

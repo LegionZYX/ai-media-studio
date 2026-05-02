@@ -80,3 +80,13 @@ export const seedanceAssetCreateSchema = z.object({
   asset_type: z.string().min(1),
   platform: z.string().min(1).default('bytedance'),
 })
+
+export const seedanceAssetUploadSchema = z.object({
+  baseUrl: z.string().url(),
+  apiKey: z.string().min(1),
+  group_id: z.string().min(1).optional(),
+  group_name: z.string().min(1).optional(),
+  name: z.string().min(1),
+  asset_type: z.string().min(1).default('Image'),
+  platform: z.string().min(1).default('bytedance'),
+})
