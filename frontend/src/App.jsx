@@ -35,6 +35,32 @@ const imageQualityOptions = ['auto', 'low', 'medium', 'high']
 const imageFormatOptions = ['png', 'jpeg', 'webp']
 const aspectRatioOptions = ['16:9', '9:16', '3:4', '4:3', '1:1', '21:9', 'adaptive']
 
+const realPersonStoryPreset = {
+  title: '沙地金蛋反转短剧',
+  summary: '图 2 只作为蓝头巾女孩的真人参考，红裙女孩由模型单独生成，适合 9:16 竖屏剧情短视频。',
+  steps: [
+    '先把图 2 上传到“首帧上传”，开启真人模式。',
+    '建议同时开启“真人参考图转 AIAI 素材”，让首帧优先走 asset://。',
+    '图 2 只对应蓝头巾女孩，不要让模型把她同时生成成红裙女孩。',
+    '如果你只有一张真人图，先用“首帧 / 首尾帧”模式，尾帧留空即可。',
+  ],
+  prompt: [
+    '9:16 vertical cinematic short drama, fast-paced montage, realistic live-action style, warm desert daylight, high emotional contrast.',
+    'Use the uploaded real-person reference only for the blue-hijab girl: round face, soft expression, light blue hijab, brown dress, slightly chubby body shape, keep her facial identity stable in every shot.',
+    'The red-dress girl is a separate fictional character, not the same person as the reference girl: tall, glamorous, vivid red long dress, arrogant expression, sharp movements, exaggerated villain energy.',
+    'Story flow follows an 8-shot montage in one continuous short clip.',
+    'Shot 1: medium shot, sandy wasteland, giant golden egg in front, red-dress girl violently shoves the blue-hijab girl away and hugs the golden egg possessively.',
+    'Shot 2: close-up, red-dress girl sneers proudly, hugging the egg tightly, dust blowing, highly exaggerated evil laughter.',
+    'Shot 3: medium shot, blue-hijab girl stands up gently, looks at the white egg with curiosity and hope, breathing steady, expression soft but attentive.',
+    'Shot 4: extreme close-up, the white egg cracks open, several fluffy yellow chicks pop out and chirp happily.',
+    'Shot 5: close-up on the blue-hijab girl, she gasps, then bursts into delighted laughter, raises both hands, eyes shining with surprise and joy.',
+    'Shot 6: quick cut to a bright palace hall, red-dress girl stands on polished stone floor, still clutching a giant golden egg and shouting greedily.',
+    'Shot 7: close-up, the golden egg suddenly breaks and explodes with thick sticky yellow mud, splashing wildly onto the red-dress girl and her expensive dress.',
+    'Shot 8: full shot, the red-dress girl slips badly in the mud and collapses awkwardly while the blue-hijab girl watches in relief and amusement.',
+    'Keep the blue-hijab girl kind, warm, and believable. Keep the red-dress girl visually distinct. No subtitles. Prioritize expressive facial reactions, dramatic body language, quick cinematic cuts, stable character identity, and clean vertical framing.',
+  ].join(' '),
+}
+
 function normalizeBaseUrl(baseUrl) {
   return baseUrl.trim().replace(/\/+$/, '')
 }
@@ -89,10 +115,15 @@ async function remoteUrlToFile(url) {
 }
 
 async function resolveSeedanceInput(file, url) {
+  const normalizedUrl = url.trim()
+  if (normalizedUrl) {
+    return normalizedUrl
+  }
+
   if (file) {
     return fileToDataUrl(file)
   }
-  return url.trim()
+  return ''
 }
 
 function getSeedanceVideoUrl(result) {
@@ -155,6 +186,7 @@ function App() {
     resolution: '720p',
     aspectRatio: '16:9',
     realPersonMode: false,
+    realPersonAssetMode: true,
     frameFile: null,
     frameUrl: '',
     tailFile: null,
@@ -256,6 +288,27 @@ function App() {
 
   const setImagePatch = (patch) => setImageState((current) => ({ ...current, ...patch }))
   const setVideoPatch = (patch) => setVideoState((current) => ({ ...current, ...patch }))
+
+  function applyRealPersonStoryPreset() {
+    setSurface('video')
+    setVideoPatch({
+      model: 'doubao-seedance-2.0',
+      mode: 'image',
+      prompt: realPersonStoryPreset.prompt,
+      duration: 8,
+      resolution: '720p',
+      aspectRatio: '9:16',
+      realPersonMode: true,
+      realPersonAssetMode: true,
+      error: '',
+      result: null,
+      requestPreview: null,
+      curlCommand: '',
+      assetGroupName: '真人剧情角色素材',
+      assetName: '蓝头巾女孩真人参考',
+      assetTarget: 'image',
+    })
+  }
 
   async function submitImage(event) {
     event.preventDefault()
@@ -365,7 +418,7 @@ function App() {
     }
   }
 
-  async function submitVideo(event) {
+  async function _submitVideo(event) {
     event.preventDefault()
 
     if (!API_BASE) {
@@ -640,10 +693,12 @@ function App() {
 
       if (target === 'image') {
         nextPatch.frameUrl = data.assetRef
+        nextPatch.frameFile = null
       }
 
       if (target === 'image_tail') {
         nextPatch.tailUrl = data.assetRef
+        nextPatch.tailFile = null
       }
 
       setVideoPatch(nextPatch)
@@ -688,11 +743,191 @@ function App() {
         assetTaskId: lastTaskId,
         assetStatus: lastStatus,
         multiText: videoState.multiText ? `${videoState.multiText}\n${refs.join('\n')}` : refs.join('\n'),
+        multiFiles: [],
       })
     } catch (error) {
       setVideoPatch({
         assetSubmitting: false,
         error: error instanceof Error ? error.message : '批量上传到 AIAI 失败',
+      })
+    }
+  }
+
+  async function submitVideoWithRealPersonFlow(event) {
+    event.preventDefault()
+
+    if (!API_BASE) {
+      setVideoPatch({ error: '当前页面未配置工具 API 地址，视频功能暂不可用。' })
+      return
+    }
+
+    setVideoPatch({
+      submitting: true,
+      error: '',
+      result: null,
+      taskId: '',
+      polling: false,
+      pollCount: 0,
+    })
+
+    try {
+      const payload = {
+        model: videoState.model,
+        prompt: videoState.prompt,
+        duration: Number(videoState.duration),
+        resolution: videoState.resolution,
+        aspect_ratio: videoState.aspectRatio,
+        async: true,
+      }
+
+      if (videoState.realPersonMode) {
+        payload.extra_body = { real_person_mode: true }
+      }
+
+      let nextAssetGroupId = videoState.assetGroupId
+      let nextAssetTaskId = ''
+      let nextAssetStatus = null
+      const shouldPreferAssetRefs = videoState.realPersonMode && videoState.realPersonAssetMode
+
+      async function resolveVideoReference({ file, url, name }) {
+        const trimmedUrl = url.trim()
+
+        if (trimmedUrl.startsWith('asset://')) {
+          return trimmedUrl
+        }
+
+        if (shouldPreferAssetRefs && (file || /^https?:\/\//i.test(trimmedUrl))) {
+          const uploadFile = file || (trimmedUrl ? await remoteUrlToFile(trimmedUrl) : null)
+          const uploadResult = await uploadFileToAiai({
+            file: uploadFile,
+            name,
+            groupIdOverride: nextAssetGroupId,
+          })
+          nextAssetGroupId = uploadResult.groupId || nextAssetGroupId
+          nextAssetTaskId = uploadResult.taskId || nextAssetTaskId
+          nextAssetStatus = uploadResult.data || uploadResult
+          return uploadResult.assetRef
+        }
+
+        return resolveSeedanceInput(file, url)
+      }
+
+      if (videoState.mode === 'image') {
+        const frameValue = await resolveVideoReference({
+          file: videoState.frameFile,
+          url: videoState.frameUrl,
+          name: '首帧真人参考',
+        })
+
+        if (!frameValue) {
+          throw new Error('首帧是必填项。只做首帧视频时填写 image；需要尾帧过渡时再额外填写 image_tail。')
+        }
+
+        payload.image = frameValue
+
+        const tailValue = await resolveVideoReference({
+          file: videoState.tailFile,
+          url: videoState.tailUrl,
+          name: '尾帧真人参考',
+        })
+
+        if (tailValue) {
+          payload.image_tail = tailValue
+        }
+      }
+
+      if (videoState.mode === 'multi') {
+        const imageUrls = parseLines(videoState.multiText)
+        const videos = parseLines(videoState.referenceVideoText)
+        const audios = parseLines(videoState.referenceAudioText)
+        let imageFiles = []
+
+        if (shouldPreferAssetRefs && videoState.multiFiles.length > 0) {
+          for (let index = 0; index < videoState.multiFiles.length; index += 1) {
+            const uploadResult = await uploadFileToAiai({
+              file: videoState.multiFiles[index],
+              name: `${videoState.assetName || '多参考图'}-${index + 1}`,
+              groupIdOverride: nextAssetGroupId,
+            })
+            nextAssetGroupId = uploadResult.groupId || nextAssetGroupId
+            nextAssetTaskId = uploadResult.taskId || nextAssetTaskId
+            nextAssetStatus = uploadResult.data || uploadResult
+            imageFiles.push(uploadResult.assetRef)
+          }
+        } else {
+          imageFiles = await Promise.all(videoState.multiFiles.map((file) => fileToDataUrl(file)))
+        }
+
+        const images = [...imageUrls, ...imageFiles]
+
+        if (images.length > 9) {
+          throw new Error('多参考模式最多支持 9 张参考图。')
+        }
+
+        if (videos.length > 3) {
+          throw new Error('多参考模式最多支持 3 个参考视频 URL。')
+        }
+
+        if (audios.length > 3) {
+          throw new Error('多参考模式最多支持 3 个参考音频 URL。')
+        }
+
+        if (audios.length > 0 && images.length === 0 && videos.length === 0) {
+          throw new Error('不能只传音频。多参考模式至少需要参考图或参考视频。')
+        }
+
+        if (images.length > 0) {
+          payload.images = images
+        }
+
+        if (videos.length === 1) {
+          payload.video = videos[0]
+        }
+
+        if (videos.length > 1) {
+          payload.videos = videos
+        }
+
+        if (audios.length === 1) {
+          payload.audio = audios[0]
+        }
+
+        if (audios.length > 1) {
+          payload.audios = audios
+        }
+      }
+
+      const response = await fetch(`${API_BASE}/api/tools/seedance/jobs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baseUrl: normalizeBaseUrl(videoState.baseUrl),
+          apiKey: videoState.apiKey,
+          payload,
+        }),
+      })
+      const data = await response.json()
+
+      setVideoPatch({
+        submitting: false,
+        result: data,
+        taskId: data.taskId || '',
+        polling: Boolean(response.ok && data.taskId),
+        requestPreview: payload,
+        assetGroupId: nextAssetGroupId,
+        assetTaskId: nextAssetTaskId,
+        assetStatus: nextAssetStatus,
+        curlCommand: buildJsonCurl({
+          url: `${normalizeBaseUrl(videoState.baseUrl)}/api/v1/videos/generations`,
+          apiKey: videoState.apiKey,
+          payload,
+        }),
+        error: response.ok ? '' : data.message || data.error || '视频请求失败',
+      })
+    } catch (error) {
+      setVideoPatch({
+        submitting: false,
+        error: error instanceof Error ? error.message : '视频请求失败',
       })
     }
   }
@@ -931,7 +1166,7 @@ function App() {
 
         {surface === 'video' && (
           <section className="tool-layout">
-            <form className="tool-card tool-form" onSubmit={submitVideo}>
+            <form className="tool-card tool-form" onSubmit={submitVideoWithRealPersonFlow}>
               <div className="tool-head">
                 <div>
                   <h2>视频生成</h2>
@@ -948,6 +1183,22 @@ function App() {
                   <li>多参考模式里，参考图最多 9 张，参考视频 URL 最多 3 个，参考音频 URL 最多 3 个。</li>
                   <li>本地文件默认不会先独立上传到服务器，而是由浏览器读取后直接进入本次生成请求；只有你使用“素材资产模式”时，才会单独创建 <code>asset://...</code>。</li>
                 </ul>
+              </div>
+
+              <div className="preset-box">
+                <div className="preset-copy">
+                  <span className="badge blue">真人剧情模板</span>
+                  <h3>{realPersonStoryPreset.title}</h3>
+                  <p>{realPersonStoryPreset.summary}</p>
+                  <ul className="hint-list">
+                    {realPersonStoryPreset.steps.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <button className="secondary-button" type="button" onClick={applyRealPersonStoryPreset}>
+                  一键套用这个真人视频模板
+                </button>
               </div>
 
               <div className="input-grid">
@@ -1021,6 +1272,14 @@ function App() {
                 <label className="checkbox-row">
                   <span>真人模式</span>
                   <input type="checkbox" checked={videoState.realPersonMode} onChange={(event) => setVideoPatch({ realPersonMode: event.target.checked })} />
+                </label>
+                <label className="checkbox-row">
+                  <span>真人参考图转 AIAI 素材</span>
+                  <input
+                    type="checkbox"
+                    checked={videoState.realPersonAssetMode}
+                    onChange={(event) => setVideoPatch({ realPersonAssetMode: event.target.checked })}
+                  />
                 </label>
               </div>
 

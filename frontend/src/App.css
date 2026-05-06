@@ -148,6 +148,27 @@
   background: linear-gradient(180deg, rgba(16, 32, 59, 0.9), rgba(11, 17, 26, 0.92));
 }
 
+.preset-box {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 18px;
+  border: 1px solid rgba(86, 245, 159, 0.18);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(18, 31, 24, 0.96), rgba(11, 17, 26, 0.96));
+}
+
+.preset-copy h3 {
+  margin: 12px 0 8px;
+  font-size: 1.06rem;
+}
+
+.preset-copy p {
+  margin: 0 0 10px;
+  color: #aab5c7;
+  line-height: 1.7;
+}
+
 .note-box strong {
   display: block;
   margin-bottom: 10px;
